@@ -1,3 +1,5 @@
+open util/ordering[SystemState]
+
 sig Data{}
 
 sig Packet{
@@ -5,11 +7,11 @@ sig Packet{
 }
 
 sig Sender{
-	buffer: some Data
+	buffer: set Data
 }
 
 sig Reciever{
-	buffer: some Data
+	buffer: set Data
 }
 
 sig SystemState{
@@ -18,8 +20,8 @@ sig SystemState{
 	inFlight: lone Packet
 }
 
-pred sendPacket{
-	some disj s1, s2: SystemState |
+pred sendPacket[s1, s2 : SystemState]{
+
 		//the senders are different
 		s1.currentSender in Sender - s2.currentSender
 		and
@@ -59,8 +61,8 @@ pred sendPacket{
 		)
 }
 
-pred recievePacket{
-	some disj s1, s2: SystemState |
+pred recievePacket[s1, s2: SystemState]{
+
 		
 		// the senders are the same
 		s1.currentSender not in Sender - s2.currentSender
@@ -100,20 +102,64 @@ pred recievePacket{
 		)
 }
 
-// final state leads to no state
-// all states have something leading to them unless they are the init state
+pred finalState[s: SystemState]{
+	s.currentReciever.buffer = Data 
+	no s.currentSender.buffer
+	no s.inFlight
+}
 
+pred init[s: SystemState]{
+	s.currentSender.buffer = Data 
+	no s.currentReciever.buffer
+	no s.inFlight	
+}
+
+
+fact traceFullTransition{
+	init[first]
+	all s:SystemState - last |
+		let s' = s.next |
+			sendPacket[s, s'] or recievePacket[s, s']
+}
+
+fact trimExtraPackets{
+	all d:Data| one p:Packet | d in p.insideData
+}
+
+fact trimExtraSenders{
+	all disj s1, s2: Sender | s1.buffer not = s2.buffer
+}
+
+fact trimExtraRecievers{
+	all disj s1, s2: Reciever | s1.buffer not = s2.buffer
+}
+
+pred allDataGetsThroughPred{
+	some s: SystemState |
+		finalState[s]
+}
+
+assert allDataGetsThrough{
+	not( some s: SystemState |
+		finalState[s])
+}
+
+pred failureState[s:SystemState] {
+	no s.inFlight
+	no s.currentSender.buffer
+	some d:Data| d not in s.currentReciever.buffer
+}
+
+assert allDataDoesNotGetThrough{
+	not some s:SystemState |	failureState[s]
+}
+
+check allDataGetsThrough for 5 but exactly 2 Data
+check allDataDoesNotGetThrough for 5 but exactly 2 Data
 
 run sendPacket for 2
 
 run recievePacket for 2
 
-
-
-
-
-
-
-
-
-
+run finalState for 5 but exactly 2 Data
+run init for 3 but exactly 2 Data
