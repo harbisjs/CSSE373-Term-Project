@@ -5,12 +5,10 @@ sig Packet{
 }
 
 sig Sender{
-//	sendData: one Data
 	buffer: some Data
 }
 
 sig Reciever{
-//	receivingData: one Data
 	buffer: some Data
 }
 
@@ -22,24 +20,28 @@ sig SystemState{
 
 pred sendPacket{
 	some disj s1, s2: SystemState |
-		
+		//the senders are different
 		s1.currentSender in Sender - s2.currentSender
 		and
+		//the recievers are the same
 		s1.currentReciever not in Reciever - s2.currentReciever
 
 		and
+		//initially nothing in flight
 		(no p:Packet | p in s1.inFlight)
 		and
+		//after only one packet in flight
 		(one p:Packet | p in s2.inFlight)
 
 
 		and
 		(
 		one d: Data |
+			//the data came from the sender buffer and is now in flight
 			d in s2.inFlight.insideData and d in s1.currentSender.buffer
-
+			//the data did not start in flight and did not end up in the sender buffer
 			and d not in s2.currentSender.buffer and d not in s1.inFlight.insideData
-
+			//the data is not in any reciever buffer
 			and d not in s1.currentReciever.buffer and d not in s2.currentReciever.buffer
 			
 			and 
@@ -49,8 +51,10 @@ pred sendPacket{
 			// no new data entered the buffer
 			(all senderData : Data - (s1.currentSender.buffer - d) | senderData not in s2.currentSender.buffer)
 			and
+			//nothing got lost from the reciever buffer
 			(all recieverData : s1.currentReciever.buffer | recieverData in s2.currentReciever.buffer)
 			and
+			//nothing got added in the reciever buffer
 			(all recieverData : Data - s1.currentReciever.buffer | recieverData not in s2.currentReciever.buffer)
 		)
 }
@@ -65,8 +69,10 @@ pred recievePacket{
 		s1.currentReciever in Reciever - s2.currentReciever
 
 		and
+		//initially one packet in flight
 		(one p:Packet | p in s1.inFlight)
 		and
+		//after nothing in flight
 		(no p:Packet | p in s2.inFlight)
 
 		and
