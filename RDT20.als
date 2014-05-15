@@ -1,27 +1,73 @@
 open util/ordering[SystemState]
 
-sig Data{}
+sig Data {}
 
 sig Packet{
 	insideData: one Data
 }
 
+one sig AckPacket, NakPacket extends Packet{}
+
 sig Sender{
-	buffer: set Data
+	buffer: set Data,
+	mostRecentlySentData: lone Data
 }
 
 sig Receiver{
 	buffer: set Data
 }
 
+abstract sig PacketStatus { }
+one sig Corrupted, NotCorrupted extends PacketStatus { }
+
 sig SystemState{
 	currentSender: one Sender,
 	currentReceiver: one Receiver,
-	inFlight: lone Packet
+	inFlight: lone Packet,
+	inFlightStatus: lone PacketStatus 
+}
+
+fact alwaysPacketStatus{
+	all s:SystemState | (one s.inFlight => one s.inFlightStatus) and (no s.inFlight => no s.inFlightStatus)
+}
+
+pred sendAckNakPacket[s1, s2 : SystemState] {
+	// Send ack or nak packet
+	s1.inFlightStatus in Corrupted <=>
+	(
+		s1.inFlight.insideData in Data
+		and
+		no d:Data | d in (s2.currentSender.buffer - s1.currentSender.buffer)
+		and
+		no d:Data | d in (s1.currentSender.buffer - s2.currentSender.buffer)
+		and
+
+		no d:Data | d in (s2.currentReceiver.buffer - s1.currentReceiver.buffer)
+		and
+		no d:Data | d in (s1.currentReceiver.buffer - s2.currentReceiver.buffer)
+		and
+		// sending the nak packet
+		s2.inFlight in NakPacket
+		and
+		s2.inFlightStatus in PacketStatus
+	)
+}
+
+pred testSendAckNakPacket{
+	some disj s1, s2 : SystemState | s1.inFlightStatus in Corrupted and Corrupted in s1.inFlightStatus and sendAckNakPacket[s1, s2]
+}
+
+run testSendAckNakPacket for 2
+
+pred receiveAckNakPacket[s1, s2 : SystemState]{
+	// Receive ack or nak
 }
 
 pred sendPacket[s1, s2 : SystemState]{
 
+		no s1.currentSender.mostRecentlySentData
+
+		and
 		//the senders are different
 		s1.currentSender in Sender - s2.currentSender
 		and
@@ -63,7 +109,10 @@ pred sendPacket[s1, s2 : SystemState]{
 
 pred receivePacket[s1, s2: SystemState]{
 
-		
+
+
+		s1.inFlightStatus in NotCorrupted
+		and
 		// the senders are the same
 		s1.currentSender not in Sender - s2.currentSender
 		and
@@ -114,14 +163,14 @@ pred init[s: SystemState]{
 	no s.inFlight	
 }
 
-
+/*
 fact traceFullTransition{
 	init[first]
 	all s:SystemState - last |
 		let s' = s.next |
 			sendPacket[s, s'] or receivePacket[s, s']
 }
-
+*/
 fact trimExtraPackets{
 	all d:Data| one p:Packet | d in p.insideData
 }
