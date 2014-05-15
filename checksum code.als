@@ -18,3 +18,10 @@ one sig Global{
 fun computeChecksum [p: Payload] Checksum {
 	Global.checksums[p]
 }
+
+/* SIDE NOTE
+
+we need multiple Ack/Nak objects.
+
+we need a skip in the transition if we get an Ack/Nak as the else statement
+*/
